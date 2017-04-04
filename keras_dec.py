@@ -17,6 +17,7 @@ from keras.callbacks import LearningRateScheduler
 from sklearn.utils.linear_assignment_ import linear_assignment
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+import utils
 if (sys.version[0] == 2):
     import cPickle as pickle
 else:
@@ -89,10 +90,8 @@ class DeepEmbeddingClustering(object):
     def __init__(self,
                  n_clusters,
                  input_dim,
-                 encoded=None,
-                 decoded=None,
                  alpha=1.0,
-                 pretrained_weights=None,
+                 pretrained_weights_path=None,
                  cluster_centres=None,
                  batch_size=256,
                  **kwargs):
@@ -101,10 +100,8 @@ class DeepEmbeddingClustering(object):
 
         self.n_clusters = n_clusters
         self.input_dim = input_dim
-        self.encoded = encoded
-        self.decoded = decoded
         self.alpha = alpha
-        self.pretrained_weights = pretrained_weights
+        self.pretrained_weights_path = pretrained_weights_path
         self.cluster_centres = cluster_centres
         self.batch_size = batch_size
 
@@ -162,15 +159,12 @@ class DeepEmbeddingClustering(object):
             assert cluster_centres.shape[0] == self.n_clusters
             assert cluster_centres.shape[1] == self.encoder.layers[-1].output_dim
 
-        if self.pretrained_weights is not None:
-            self.autoencoder.load_weights(self.pretrained_weights)
-
     def p_mat(self, q):
         weight = q**2 / q.sum(0)
         return (weight.T / weight.sum(1)).T
 
-    def initialize(self, X, save_autoencoder=False, layerwise_pretrain_iters=50000, finetune_iters=100000):
-        if self.pretrained_weights is None:
+    def initialize(self, X, autuencoder_weights_save_path=None, layerwise_pretrain_iters=50000, finetune_iters=100000):
+        if self.pretrained_weights_path is None:
 
             iters_per_epoch = int(len(X) / self.batch_size)
             layerwise_epochs = max(int(layerwise_pretrain_iters / iters_per_epoch), 1)
@@ -207,14 +201,15 @@ class DeepEmbeddingClustering(object):
             #update encoder and decoder weights:
             self.autoencoder.fit(X, X, batch_size=self.batch_size, epochs=finetune_epochs, callbacks=[lr_schedule])
 
-            if save_autoencoder:
-                self.autoencoder.save_weights('autoencoder.h5')
+            if autuencoder_weights_save_path is not None:
+                print("Saving autoencoder weights to: %s"%autuencoder_weights_save_path)
+                self.autoencoder.save_weights(autuencoder_weights_save_path)
         else:
             print('Loading pretrained weights for autoencoder.')
-            self.autoencoder.load_weights(self.pretrained_weights)
+            self.autoencoder.load_weights(self.pretrained_weights_path)
 
-        # update encoder, decoder
-        # TODO: is this needed? Might be redundant...
+        # update encoder
+        # todo: switch to functional API so this won't be needed
         for i in range(len(self.encoder.layers)):
             self.encoder.layers[i].set_weights(self.autoencoder.layers[i].get_weights())
 
@@ -237,6 +232,7 @@ class DeepEmbeddingClustering(object):
         self.DEC.compile(loss='kullback_leibler_divergence', optimizer='adadelta')
         return
 
+    
     def cluster_acc(self, y_true, y_pred):
         assert y_pred.size == y_true.size
         D = max(y_pred.max(), y_true.max())+1
@@ -246,6 +242,7 @@ class DeepEmbeddingClustering(object):
         ind = linear_assignment(w.max() - w)
         return sum([w[i, j] for i, j in ind])*1.0/y_pred.size, w
 
+    
     def cluster(self, X, y=None,
                 tol=0.01, update_interval=None,
                 iter_max=1e6,
@@ -255,12 +252,10 @@ class DeepEmbeddingClustering(object):
         if update_interval is None:
             # 1 epochs
             update_interval = X.shape[0]/self.batch_size
-        print('Update interval', update_interval)
 
         if save_interval is None:
             # 50 epochs
             save_interval = X.shape[0]/self.batch_size*50
-        print('Save interval', save_interval)
 
         assert save_interval >= update_interval
 
@@ -273,7 +268,11 @@ class DeepEmbeddingClustering(object):
             # cutoff iteration
             if iter_max < iteration:
                 print('Reached maximum iteration limit. Stopping training.')
-                return self.y_pred
+                if y is not None:
+                    y_pred_translated = utils.to_original_clusters(y_pred, y)
+                    return y_pred_translated
+                else:
+                    return self.y_pred
 
             # update (or initialize) probability distributions and propagate weight changes
             # from DEC model to encoder.
