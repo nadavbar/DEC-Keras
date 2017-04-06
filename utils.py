@@ -201,7 +201,6 @@ def draw_clusters3d(X, labels, colors=None, show_plt=True, show_title=False, nam
 
         class_member_mask = (labels == k)
         xy = X[class_member_mask]
-        print col
         ax.scatter(xy[:, 0], xy[:, 1], xy[:, 2], s=markersize, c=col)
 #                 edgecolor=markeredgecolor, linewidth=linewidth)
         #ax.plot(xy[:, 0], xy[:, 1], 'o', markerfacecolor=col,

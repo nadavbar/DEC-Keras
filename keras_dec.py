@@ -170,10 +170,10 @@ class DeepEmbeddingClustering(object):
             layerwise_epochs = max(int(layerwise_pretrain_iters / iters_per_epoch), 1)
             finetune_epochs = max(int(finetune_iters / iters_per_epoch), 1)
 
-            print('layerwise pretrain')
+            print('Running layerwise pretrain')
             current_input = X
             lr_epoch_update = max(1, self.iters_lr_update / float(iters_per_epoch))
-            
+
             def step_decay(epoch):
                 initial_rate = self.learning_rate
                 factor = int(epoch / lr_epoch_update)
@@ -205,7 +205,7 @@ class DeepEmbeddingClustering(object):
                 print("Saving autoencoder weights to: %s"%autuencoder_weights_save_path)
                 self.autoencoder.save_weights(autuencoder_weights_save_path)
         else:
-            print('Loading pretrained weights for autoencoder.')
+            print('Loading pretrained weights for autoencoder from %s'%self.pretrained_weights_path)
             self.autoencoder.load_weights(self.pretrained_weights_path)
 
         # update encoder
