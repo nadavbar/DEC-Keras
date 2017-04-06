@@ -25,7 +25,7 @@ def permute(X, Y=None):
 
 
 def read_data(file_path, seperator=',', has_labels=True):
-    if path.split[1] == '.arff':
+    if path.splitext(file_path)[1] == '.arff':
         return read_arff(file_path, seperator=seperator, has_labels=has_labels)
     else:
         return read_csv_data(file_path, seperator=seperator, has_labels=has_labels)
